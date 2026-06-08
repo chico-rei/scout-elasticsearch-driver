@@ -157,7 +157,6 @@ class ElasticMigrateModelCommand extends Command
 
         $payload = (new RawPayload)
             ->set('index', $targetIndex)
-            ->set('type', $targetType)
             ->set('body.'.$targetType, $mapping)
             ->get();
 
