@@ -18,6 +18,8 @@ use stdClass;
 
 class ElasticEngine extends Engine
 {
+    use NormalizesClientResponse;
+
     /**
      * The indexer interface.
      *
@@ -182,7 +184,7 @@ class ElasticEngine extends Engine
         $this
             ->buildSearchQueryPayloadCollection($builder, $options)
             ->each(function ($payload) use (&$results) {
-                $results = ElasticClient::search($payload);
+                $results = $this->clientResponseToArray(ElasticClient::search($payload));
 
                 $results['_payload'] = $payload;
 
@@ -253,7 +255,7 @@ class ElasticEngine extends Engine
         $this
             ->buildSearchQueryPayloadCollection($builder, ['highlight' => false])
             ->each(function ($payload) use (&$count) {
-                $result = ElasticClient::count($payload);
+                $result = $this->clientResponseToArray(ElasticClient::count($payload));
 
                 $count = $result['count'];
 
@@ -278,7 +280,7 @@ class ElasticEngine extends Engine
             ->setIfNotEmpty('body', $query)
             ->get();
 
-        return ElasticClient::search($payload);
+        return $this->clientResponseToArray(ElasticClient::search($payload));
     }
 
     /**

@@ -7,6 +7,7 @@ use Illuminate\Console\Command;
 use ScoutElastic\Console\Features\RequiresModelArgument;
 use ScoutElastic\Facades\ElasticClient;
 use ScoutElastic\Migratable;
+use ScoutElastic\NormalizesClientResponse;
 use ScoutElastic\Payloads\IndexPayload;
 use ScoutElastic\Payloads\RawPayload;
 use Symfony\Component\Console\Input\InputArgument;
@@ -16,6 +17,7 @@ class ElasticMigrateModelCommand extends Command
     use RequiresModelArgument {
         RequiresModelArgument::getArguments as private modelArgument;
     }
+    use NormalizesClientResponse;
 
     /**
      * {@inheritdoc}
@@ -54,8 +56,9 @@ class ElasticMigrateModelCommand extends Command
             ->set('index', $targetIndex)
             ->get();
 
-        return ElasticClient::indices()
-            ->exists($payload);
+        return $this->clientResponseToBool(
+            ElasticClient::indices()->exists($payload)
+        );
     }
 
     /**
@@ -181,8 +184,9 @@ class ElasticMigrateModelCommand extends Command
             ->set('name', $name)
             ->get();
 
-        return ElasticClient::indices()
-            ->existsAlias($payload);
+        return $this->clientResponseToBool(
+            ElasticClient::indices()->existsAlias($payload)
+        );
     }
 
     /**
@@ -197,8 +201,9 @@ class ElasticMigrateModelCommand extends Command
             ->set('name', $name)
             ->get();
 
-        return ElasticClient::indices()
-            ->getAlias($getPayload);
+        return $this->clientResponseToArray(
+            ElasticClient::indices()->getAlias($getPayload)
+        );
     }
 
     /**

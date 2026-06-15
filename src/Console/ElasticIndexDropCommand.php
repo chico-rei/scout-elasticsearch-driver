@@ -6,11 +6,13 @@ use Illuminate\Console\Command;
 use ScoutElastic\Console\Features\RequiresIndexConfiguratorArgument;
 use ScoutElastic\Facades\ElasticClient;
 use ScoutElastic\Migratable;
+use ScoutElastic\NormalizesClientResponse;
 use ScoutElastic\Payloads\RawPayload;
 
 class ElasticIndexDropCommand extends Command
 {
     use RequiresIndexConfiguratorArgument;
+    use NormalizesClientResponse;
 
     /**
      * {@inheritdoc}
@@ -56,8 +58,9 @@ class ElasticIndexDropCommand extends Command
                 ->set('name', $configurator->getWriteAlias())
                 ->get();
 
-            $aliases = ElasticClient::indices()
-                ->getAlias($payload);
+            $aliases = $this->clientResponseToArray(
+                ElasticClient::indices()->getAlias($payload)
+            );
 
             return key($aliases);
         } else {

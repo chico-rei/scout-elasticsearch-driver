@@ -2,7 +2,6 @@
 
 namespace ScoutElastic;
 
-use Elasticsearch\ClientBuilder;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\ServiceProvider;
 use InvalidArgumentException;
@@ -75,7 +74,13 @@ class ScoutElasticServiceProvider extends ServiceProvider
             ->singleton('scout_elastic.client', function () {
                 $config = Config::get('scout_elastic.client');
 
-                return ClientBuilder::fromConfig($config);
+                // The elasticsearch/elasticsearch v8 client moved the builder to
+                // the Elastic\Elasticsearch namespace; fall back to the v7 class.
+                $clientBuilder = class_exists(\Elastic\Elasticsearch\ClientBuilder::class)
+                    ? \Elastic\Elasticsearch\ClientBuilder::class
+                    : \Elasticsearch\ClientBuilder::class;
+
+                return $clientBuilder::fromConfig($config);
             });
     }
 }
