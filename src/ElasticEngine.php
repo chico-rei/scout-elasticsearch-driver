@@ -6,8 +6,10 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\LazyCollection;
 use Laravel\Scout\Builder;
 use Laravel\Scout\Engines\Engine;
+use Laravel\Scout\Exceptions\NotSupportedException;
 use ScoutElastic\Builders\SearchBuilder;
 use ScoutElastic\Facades\ElasticClient;
 use ScoutElastic\Indexers\IndexerInterface;
@@ -346,6 +348,64 @@ class ElasticEngine extends Engine
     /**
      * {@inheritdoc}
      */
+    public function lazyMap(Builder $builder, $results, $model)
+    {
+        if ($this->getTotalCount($results) === 0) {
+            return LazyCollection::make($model->newCollection());
+        }
+
+        $scoutKeyName = $model->getScoutKeyName();
+
+        $columns = Arr::get($results, '_payload.body._source');
+
+        if (is_null($columns)) {
+            $columns = ['*'];
+        } else {
+            $columns[] = $scoutKeyName;
+        }
+
+        $hits = collect($results['hits']['hits']);
+
+        $ids = $hits->pluck('_id')->all();
+        $idPositions = array_flip($ids);
+
+        $hitsById = $hits->keyBy('_id');
+
+        $query = $model::usesSoftDelete() ? $model->withTrashed() : $model->newQuery();
+
+        return $query
+            ->select($columns)
+            ->whereIn($scoutKeyName, $ids)
+            ->when($builder->queryCallback, function ($query, $callback) {
+                return $callback($query);
+            })
+            ->cursor()
+            ->filter(function ($model) use ($idPositions) {
+                return isset($idPositions[$model->getScoutKey()]);
+            })
+            ->map(function ($model) use ($hitsById) {
+                $hit = $hitsById[$model->getScoutKey()] ?? [];
+
+                if (isset($hit['highlight'])) {
+                    $model->highlight = new Highlight($hit['highlight']);
+                }
+
+                //add sort information to results for use
+                if (isset($hit['sort'])) {
+                    $model->sortPayload = $hit['sort'];
+                }
+
+                return $model;
+            })
+            ->sortBy(function ($model) use ($idPositions) {
+                return $idPositions[$model->getScoutKey()];
+            })
+            ->values();
+    }
+
+    /**
+     * {@inheritdoc}
+     */
     public function getTotalCount($results)
     {
         return $results['hits']['total']['value'] ?? 0;
@@ -361,5 +421,29 @@ class ElasticEngine extends Engine
         $query
             ->orderBy($model->getScoutKeyName())
             ->unsearchable();
+    }
+
+    /**
+     * {@inheritdoc}
+     *
+     * @throws \Laravel\Scout\Exceptions\NotSupportedException
+     */
+    public function createIndex($name, array $options = [])
+    {
+        throw new NotSupportedException(
+            'The Elasticsearch driver creates indices through the elastic:create-index command.'
+        );
+    }
+
+    /**
+     * {@inheritdoc}
+     *
+     * @throws \Laravel\Scout\Exceptions\NotSupportedException
+     */
+    public function deleteIndex($name)
+    {
+        throw new NotSupportedException(
+            'The Elasticsearch driver drops indices through the elastic:drop-index command.'
+        );
     }
 }
